@@ -159,6 +159,7 @@ export default function AITutorMain() {
       if (!res.ok) throw new Error(data.detail || "Failed to upload file.");
 
       setUploadedPdfLesson(data.lesson);
+      fetchLessons();
       setUploadStatus({
         type: "success",
         message: `Uploaded to ${data.path}`
@@ -349,6 +350,14 @@ export default function AITutorMain() {
         });
         if (!res.ok) throw new Error("Failed to load");
         const data = await res.json();
+
+        if (data.type === "uploaded_pdf") {
+            setUploadedPdfLesson(data);
+            setLearningMode(false);
+            setGenerated(false);
+            setChatOpen(false);
+            return;
+        }
         
         setLessonId(data._id);
         setTopic(data.topic);
@@ -1146,7 +1155,7 @@ export default function AITutorMain() {
                                 <BookCard
                                     key={lesson._id}
                                     title={lesson.topic}
-                                    subtitle={`${lesson.vibe} • ${formatLessonDate(lesson.createdAt)}`}
+                                    subtitle={`${lesson.type === 'uploaded_pdf' ? 'Uploaded PDF' : lesson.vibe} • ${formatLessonDate(lesson.createdAt)}`}
                                     colorIndex={idx}
                                     onClick={() => handleLoadLesson(lesson._id)}
                                     onDelete={(e) => handleDeleteLesson(e, lesson._id)}
