@@ -62,12 +62,19 @@ export default function UploadedPdfReader({ lesson, backendUrl, onExit }) {
     const shell = pdfShellRef.current;
     if (!shell) return;
 
-    const updateWidth = () => setPdfContainerWidth(shell.clientWidth || 0);
+    const updateWidth = () => {
+      const measuredWidth = Math.floor(shell.getBoundingClientRect().width || shell.clientWidth || 0);
+      setPdfContainerWidth(measuredWidth || Math.max(window.innerWidth - 180, 320));
+    };
     updateWidth();
 
     const observer = new ResizeObserver(updateWidth);
     observer.observe(shell);
-    return () => observer.disconnect();
+    window.addEventListener("resize", updateWidth);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateWidth);
+    };
   }, []);
 
   useEffect(() => {
@@ -128,7 +135,7 @@ export default function UploadedPdfReader({ lesson, backendUrl, onExit }) {
     let cancelled = false;
 
     const renderPage = async () => {
-      if (!pdfDoc || !pdfCanvasRef.current || !pdfContainerWidth) return;
+      if (!pdfDoc || !pdfCanvasRef.current) return;
 
       setPdfRenderLoading(true);
       setPdfRenderError("");
@@ -137,14 +144,24 @@ export default function UploadedPdfReader({ lesson, backendUrl, onExit }) {
         if (cancelled) return;
 
         const baseViewport = pdfPage.getViewport({ scale: 1 });
-        const availableWidth = Math.max(pdfContainerWidth - 24, 240);
+        const shellWidth =
+          Math.floor(pdfShellRef.current?.getBoundingClientRect().width || 0) ||
+          pdfContainerWidth ||
+          Math.max(window.innerWidth - 180, 320);
+        const availableWidth = Math.max(shellWidth - 24, 240);
         const scale = availableWidth / baseViewport.width;
         const outputScale = window.devicePixelRatio || 1;
         const viewport = pdfPage.getViewport({ scale });
         const renderViewport = pdfPage.getViewport({ scale: scale * outputScale });
 
         const canvas = pdfCanvasRef.current;
+        if (!canvas) {
+          return;
+        }
         const context = canvas.getContext("2d");
+        if (!context) {
+          throw new Error("Canvas rendering context unavailable.");
+        }
         canvas.width = Math.floor(renderViewport.width);
         canvas.height = Math.floor(renderViewport.height);
         canvas.style.width = `${Math.floor(viewport.width)}px`;
@@ -376,43 +393,32 @@ export default function UploadedPdfReader({ lesson, backendUrl, onExit }) {
         <div className="book-page-stack"></div>
 
         <div className="book-page pdf-book-page" style={{ paddingTop: "20px", paddingBottom: "20px" }}>
-          <div className="pdf-reader-header">
-            <h2 className="text-xl font-bold text-gray-900 mb-2 font-serif">{lesson.topic}</h2>
-            <p className="text-sm text-gray-500 m-0">{pageData?.title || `Page ${page}`} of {pageCount}</p>
+          <div ref={pdfShellRef} className="pdf-frame-shell">
+            {(pdfRenderLoading || !pdfDoc || pageLoading) && (
+              <div className="pdf-render-loading">
+                <div className="writing-chapter-wrap">
+                  <div className="writing-chapter-book" aria-hidden="true">
+                    <span className="writing-pen"></span>
+                    <span className="writing-line line-1"></span>
+                    <span className="writing-line line-2"></span>
+                    <span className="writing-line line-3"></span>
+                  </div>
+                  <div className="writing-chapter-text">
+                    Loading PDF Page
+                    <span className="writing-dots" aria-hidden="true"></span>
+                  </div>
+                </div>
+              </div>
+            )}
+            {pdfRenderError && !pdfRenderLoading && !pageLoading && (
+              <div className="pdf-render-error text-center">
+                <p className="text-danger m-0">{pdfRenderError}</p>
+              </div>
+            )}
+            <div className="pdf-canvas-wrap">
+              <canvas ref={pdfCanvasRef} className="pdf-canvas" />
+            </div>
           </div>
-
-          {pageLoading ? (
-            <div className="d-flex justify-content-center align-items-center h-100">
-              <div className="writing-chapter-wrap">
-                <div className="writing-chapter-book" aria-hidden="true">
-                  <span className="writing-pen"></span>
-                  <span className="writing-line line-1"></span>
-                  <span className="writing-line line-2"></span>
-                  <span className="writing-line line-3"></span>
-                </div>
-                <div className="writing-chapter-text">
-                  Loading PDF Page
-                  <span className="writing-dots" aria-hidden="true"></span>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div ref={pdfShellRef} className="pdf-frame-shell">
-              {(pdfRenderLoading || !pdfDoc) && (
-                <div className="pdf-render-loading">
-                  <span className="jumping-dots font-semibold" style={{ fontSize: "18px", color: "#6366f1" }}>Rendering Page</span>
-                </div>
-              )}
-              {pdfRenderError && !pdfRenderLoading && (
-                <div className="pdf-render-error text-center">
-                  <p className="text-danger m-0">{pdfRenderError}</p>
-                </div>
-              )}
-              <div className="pdf-canvas-wrap">
-                <canvas ref={pdfCanvasRef} className="pdf-canvas" />
-              </div>
-            </div>
-          )}
 
           <div style={{ height: "60px" }}></div>
         </div>

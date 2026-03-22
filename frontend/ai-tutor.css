@@ -317,6 +317,7 @@
 .pdf-book-page {
   display: flex;
   flex-direction: column;
+  background: #fdfbf7;
 }
 
 .pdf-reader-header {
@@ -326,32 +327,29 @@
 .pdf-frame-shell {
   flex: 1;
   min-height: 0;
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
   overflow: hidden;
-  background: #f8fafc;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  background: #fdfbf7;
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 12px;
+  padding: 0;
 }
 
 .pdf-canvas-wrap {
   width: 100%;
-  height: calc(100vh - 234px);
+  height: calc(100vh - 170px);
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: flex-start;
   overflow: auto;
+  background: #fdfbf7;
 }
 
 .pdf-canvas {
   display: block;
-  background: #ffffff;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
-  max-width: 100%;
+  background: #fdfbf7;
+  max-width: none;
 }
 
 .pdf-render-loading {
@@ -360,7 +358,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(248, 250, 252, 0.72);
+  background: rgba(253, 251, 247, 0.8);
   z-index: 1;
 }
 
@@ -835,7 +833,7 @@
     padding: 18px 16px;
   }
   .pdf-canvas-wrap {
-    height: calc(100dvh - 214px);
+    height: calc(100dvh - 150px);
   }
   .book-bottom-nav {
     left: 36px;

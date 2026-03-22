@@ -99,3 +99,6 @@ celerybeat-schedule
 # SQLite
 *.sqlite3
 *.db
+
+# Uploaded PDF files
+backend/ai-tutor-python/uploads/
