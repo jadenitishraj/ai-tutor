@@ -4,6 +4,7 @@ import re
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
+from ..services.uploaded_pdf_service import create_uploaded_pdf_lesson
 from ..utils.auth import get_current_user
 
 router = APIRouter()
@@ -24,6 +25,9 @@ async def upload_file(
 ):
     if not file.filename:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File name is required.")
+
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only PDF uploads are supported.")
 
     user_dir = UPLOAD_ROOT / user_id
     user_dir.mkdir(parents=True, exist_ok=True)
@@ -53,10 +57,23 @@ async def upload_file(
     finally:
         await file.close()
 
+    file_url = f"/uploads/{user_id}/{stored_name}"
+    lesson = await create_uploaded_pdf_lesson(
+        user_id=user_id,
+        filename=original_name,
+        stored_filename=stored_name,
+        content_type=file.content_type,
+        size=size,
+        file_path=destination,
+        file_url=file_url,
+    )
+
     return {
         "filename": original_name,
         "stored_filename": stored_name,
         "content_type": file.content_type,
         "size": size,
         "path": str(destination.relative_to(UPLOAD_ROOT.parent)),
+        "lesson_id": lesson["_id"],
+        "lesson": lesson,
     }

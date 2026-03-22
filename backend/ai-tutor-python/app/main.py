@@ -13,11 +13,13 @@ load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
+from pathlib import Path
 
 from .config import get_settings
 from .database import connect_db, close_db
-from .routes import curriculum, chapter, chat, get_lesson, my_lessons, refine_curriculum, auth, summary, mindmap, vocab, mcq, question_answer, upload_file
+from .routes import curriculum, chapter, chat, get_lesson, my_lessons, refine_curriculum, auth, summary, mindmap, vocab, mcq, question_answer, upload_file, uploaded_pdf
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -72,6 +74,11 @@ def create_app() -> FastAPI:
     application.include_router(mcq.router,               prefix="/api/ai-tutor/mcq",               tags=["MCQ"])
     application.include_router(question_answer.router,   prefix="/api/ai-tutor/question-answer",   tags=["QuestionAnswer"])
     application.include_router(upload_file.router,       prefix="/api/ai-tutor/upload-file",       tags=["Upload"])
+    application.include_router(uploaded_pdf.router,      prefix="/api/ai-tutor/uploaded-pdf",      tags=["UploadedPDF"])
+
+    uploads_dir = Path(__file__).resolve().parents[1] / "uploads"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    application.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
     @application.get("/health", tags=["Health"])
     async def health():

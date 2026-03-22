@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { MessageCircle, MessageSquareQuote, FileQuestion, Download, X, Send, ArrowRight, ArrowLeft, BookOpen, Edit2, RotateCcw, LogOut, Library, List, Network, BookA } from "lucide-react";
 import BookCard from './BookCard';
+import UploadedPdfReader from './UploadedPdfReader';
 import { ShimmerBlock } from '../Common/Shimmer';
 import { motion, AnimatePresence } from "framer-motion";
 import jsPDF from "jspdf";
@@ -33,6 +34,7 @@ export default function AITutorMain() {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [uploadStatus, setUploadStatus] = useState(null);
+  const [uploadedPdfLesson, setUploadedPdfLesson] = useState(null);
   const [generated, setGenerated] = useState(false);
   const [learningMode, setLearningMode] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -156,6 +158,7 @@ export default function AITutorMain() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Failed to upload file.");
 
+      setUploadedPdfLesson(data.lesson);
       setUploadStatus({
         type: "success",
         message: `Uploaded to ${data.path}`
@@ -942,6 +945,16 @@ export default function AITutorMain() {
             </button>
         </div>
       );
+  }
+
+  if (uploadedPdfLesson) {
+    return (
+      <UploadedPdfReader
+        lesson={uploadedPdfLesson}
+        backendUrl={BACKEND_URL}
+        onExit={() => setUploadedPdfLesson(null)}
+      />
+    );
   }
 
   return (
