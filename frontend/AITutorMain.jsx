@@ -1,7 +1,7 @@
 
 "use client";
 import React, { useState, useEffect, useRef } from "react";
-import { MessageCircle, Download, X, Send, ArrowRight, ArrowLeft, BookOpen, Edit2, RotateCcw, LogOut, Library } from "lucide-react";
+import { MessageCircle, Download, X, Send, ArrowRight, ArrowLeft, BookOpen, Edit2, RotateCcw, LogOut, Library, List, Network, BookA } from "lucide-react";
 import BookCard from './BookCard';
 import { ShimmerBlock } from '../Common/Shimmer';
 import { motion, AnimatePresence } from "framer-motion";
@@ -37,6 +37,18 @@ export default function AITutorMain() {
   const [chatOpen, setChatOpen] = useState(false);
   const [downloadModalOpen, setDownloadModalOpen] = useState(false);
   const [downloadOption, setDownloadOption] = useState("content"); // 'content' or 'chat'
+  
+  const [summaryModalOpen, setSummaryModalOpen] = useState(false);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [currentSummary, setCurrentSummary] = useState([]);
+  
+  const [mindmapModalOpen, setMindmapModalOpen] = useState(false);
+  const [mindmapLoading, setMindmapLoading] = useState(false);
+  const [currentMindmap, setCurrentMindmap] = useState("");
+  
+  const [vocabModalOpen, setVocabModalOpen] = useState(false);
+  const [vocabLoading, setVocabLoading] = useState(false);
+  const [currentVocab, setCurrentVocab] = useState([]);
   
   const [lessonVibe, setLessonVibe] = useState("Thinker");
   const [customVibe, setCustomVibe] = useState("");
@@ -614,6 +626,108 @@ export default function AITutorMain() {
     }
   };
 
+  const handleSummarize = async () => {
+    if (isCurriculumPage) return;
+    const token = getAuthToken();
+    const currentChapter = chapterData[page - 1]; // active chapter
+    if (!currentChapter?.title) return;
+
+    setSummaryModalOpen(true);
+    setSummaryLoading(true);
+    setCurrentSummary([]);
+    
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/ai-tutor/summary`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token && { "Authorization": `Bearer ${token}` })
+        },
+        body: JSON.stringify({
+          lesson_id: lessonId,
+          chapter_title: currentChapter.title
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to generate summary");
+      
+      setCurrentSummary(data.bullets || []);
+    } catch (err) {
+      console.error(err);
+      setCurrentSummary(["Failed to load summary."]);
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
+  const handleMindmap = async () => {
+    if (isCurriculumPage) return;
+    const token = getAuthToken();
+    const currentChapter = chapterData[page - 1];
+    if (!currentChapter?.title) return;
+
+    setMindmapModalOpen(true);
+    setMindmapLoading(true);
+    setCurrentMindmap("");
+    
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/ai-tutor/mindmap`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token && { "Authorization": `Bearer ${token}` })
+        },
+        body: JSON.stringify({
+          lesson_id: lessonId,
+          chapter_title: currentChapter.title
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to generate mindmap");
+      
+      setCurrentMindmap(data.tree || "");
+    } catch (err) {
+      console.error(err);
+      setCurrentMindmap("Failed to load mindmap.");
+    } finally {
+      setMindmapLoading(false);
+    }
+  };
+
+  const handleVocab = async () => {
+    if (isCurriculumPage) return;
+    const token = getAuthToken();
+    const currentChapter = chapterData[page - 1];
+    if (!currentChapter?.title) return;
+
+    setVocabModalOpen(true);
+    setVocabLoading(true);
+    setCurrentVocab([]);
+    
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/ai-tutor/vocab`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token && { "Authorization": `Bearer ${token}` })
+        },
+        body: JSON.stringify({
+          lesson_id: lessonId,
+          chapter_title: currentChapter.title
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to extract vocab");
+      
+      setCurrentVocab(data.vocab || []);
+    } catch (err) {
+      console.error(err);
+      setCurrentVocab([{ word: "Error", definition: "Failed to load vocabulary." }]);
+    } finally {
+      setVocabLoading(false);
+    }
+  };
+
   const handleBack = () => {
     if (learningMode) {
       setChatOpen(false);
@@ -961,6 +1075,15 @@ export default function AITutorMain() {
                       <div className="control-btn" onClick={() => setChatOpen(prev => !prev)} title="Discuss about this topic">
                           <MessageCircle size={24} />
                       </div>
+                      <div className="control-btn" onClick={handleSummarize} title="Chapter Summary" disabled={isCurriculumPage}>
+                          <List size={24} />
+                      </div>
+                      <div className="control-btn" onClick={handleMindmap} title="Concept Tree" disabled={isCurriculumPage}>
+                          <Network size={24} />
+                      </div>
+                      <div className="control-btn" onClick={handleVocab} title="Key Vocabulary" disabled={isCurriculumPage}>
+                          <BookA size={24} />
+                      </div>
                       <div className="control-btn" onClick={() => setDownloadModalOpen(true)} title="Download as PDF">
                           <Download size={24} />
                       </div>
@@ -1085,6 +1208,106 @@ export default function AITutorMain() {
                <div className="ai-modal-footer">
                    <button onClick={() => setDownloadModalOpen(false)} className="ai-btn ai-btn-secondary" style={{width: 'auto'}}>Cancel</button>
                    <button onClick={handleDownload} className="ai-btn" style={{width: 'auto'}}>Download PDF</button>
+               </div>
+           </div>
+        </div>
+      )}
+
+      {/* Summary Modal */}
+      {summaryModalOpen && (
+        <div className="ai-modal-overlay">
+           <div className="ai-modal-content">
+               <div className="d-flex justify-content-between align-items-center mb-4">
+                 <h3 className="text-xl font-bold mb-0">Chapter Summary</h3>
+                 <button onClick={() => setSummaryModalOpen(false)} style={{background: 'none', border: 'none', cursor: 'pointer'}}>
+                     <X size={20} className="text-gray-500" />
+                 </button>
+               </div>
+               
+               {summaryLoading ? (
+                 <div className="space-y-4 py-8 d-flex flex-column align-items-center">
+                    <span className="jumping-dots font-semibold" style={{fontSize: '18px', color: '#6366f1'}}>Generating Summary</span>
+                    <p className="text-sm text-gray-400">Extracting key points from the chapter...</p>
+                 </div>
+               ) : (
+                 <ul className="space-y-3 pl-6 pr-2 max-h-96 overflow-y-auto">
+                    {currentSummary.map((bullet, idx) => (
+                        <li key={idx} className="text-gray-800" style={{listStyleType: 'disc', paddingLeft: '4px', lineHeight: '1.5'}}>
+                          {bullet}
+                        </li>
+                    ))}
+                 </ul>
+               )}
+
+               <div className="ai-modal-footer mt-6">
+                   <button onClick={() => setSummaryModalOpen(false)} className="ai-btn ai-btn-secondary" style={{width: '100%'}}>Close</button>
+               </div>
+           </div>
+        </div>
+      )}
+
+      {/* Mindmap Modal */}
+      {mindmapModalOpen && (
+        <div className="ai-modal-overlay">
+           <div className="ai-modal-content" style={{ maxWidth: '800px', width: '90%' }}>
+               <div className="d-flex justify-content-between align-items-center mb-4">
+                 <h3 className="text-xl font-bold mb-0">Concept Tree</h3>
+                 <button onClick={() => setMindmapModalOpen(false)} style={{background: 'none', border: 'none', cursor: 'pointer'}}>
+                     <X size={20} className="text-gray-500" />
+                 </button>
+               </div>
+               
+               {mindmapLoading ? (
+                 <div className="space-y-4 py-8 d-flex flex-column align-items-center">
+                    <span className="jumping-dots font-semibold" style={{fontSize: '18px', color: '#6366f1'}}>Generating Concept Tree</span>
+                    <p className="text-sm text-gray-400">Mapping out the ideas from this chapter...</p>
+                 </div>
+               ) : (
+                 <div style={{ backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '16px', maxHeight: '60vh', overflowY: 'auto' }}>
+                    <pre style={{ margin: 0, fontFamily: 'monospace', fontSize: '14px', whiteSpace: 'pre-wrap', background: 'transparent', color: '#1f2937', padding: 0 }}>
+                      {currentMindmap}
+                    </pre>
+                 </div>
+               )}
+
+               <div className="ai-modal-footer mt-6">
+                   <button onClick={() => setMindmapModalOpen(false)} className="ai-btn ai-btn-secondary" style={{width: '100%'}}>Close</button>
+               </div>
+           </div>
+        </div>
+      )}
+
+      {/* Vocab Modal */}
+      {vocabModalOpen && (
+        <div className="ai-modal-overlay">
+           <div className="ai-modal-content">
+               <div className="d-flex justify-content-between align-items-center mb-4">
+                 <h3 className="text-xl font-bold mb-0">Key Vocabulary</h3>
+                 <button onClick={() => setVocabModalOpen(false)} style={{background: 'none', border: 'none', cursor: 'pointer'}}>
+                     <X size={20} className="text-gray-500" />
+                 </button>
+               </div>
+               
+               {vocabLoading ? (
+                 <div className="space-y-4 py-8 d-flex flex-column align-items-center">
+                    <span className="jumping-dots font-semibold" style={{fontSize: '18px', color: '#6366f1'}}>Extracting Words</span>
+                    <p className="text-sm text-gray-400">Finding unusual and advanced vocabulary...</p>
+                 </div>
+               ) : (
+                 <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                    {currentVocab.length > 0 ? currentVocab.map((item, idx) => (
+                        <div key={idx} className="bg-gray-50 border border-gray-100 p-3 rounded-lg">
+                            <h4 className="font-bold text-gray-900 mb-1" style={{color: '#a37548'}}>{item.word}</h4>
+                            <p className="text-sm text-gray-700 m-0">{item.definition}</p>
+                        </div>
+                    )) : (
+                        <p className="text-gray-500 text-center italic py-4">No advanced vocabulary found in this chapter.</p>
+                    )}
+                 </div>
+               )}
+
+               <div className="ai-modal-footer mt-6">
+                   <button onClick={() => setVocabModalOpen(false)} className="ai-btn ai-btn-secondary" style={{width: '100%'}}>Close</button>
                </div>
            </div>
         </div>

@@ -17,7 +17,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .config import get_settings
 from .database import connect_db, close_db
-from .routes import curriculum, chapter, chat, get_lesson, my_lessons, refine_curriculum, auth
+from .routes import curriculum, chapter, chat, get_lesson, my_lessons, refine_curriculum, auth, summary, mindmap, vocab, mcq
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -66,6 +66,10 @@ def create_app() -> FastAPI:
     application.include_router(get_lesson.router,        prefix="/api/ai-tutor/get-lesson",        tags=["Lessons"])
     application.include_router(my_lessons.router,        prefix="/api/ai-tutor/my-lessons",        tags=["Lessons"])
     application.include_router(refine_curriculum.router, prefix="/api/ai-tutor/refine-curriculum", tags=["Curriculum"])
+    application.include_router(summary.router,           prefix="/api/ai-tutor/summary",           tags=["Summary"])
+    application.include_router(mindmap.router,           prefix="/api/ai-tutor/mindmap",           tags=["Mindmap"])
+    application.include_router(vocab.router,             prefix="/api/ai-tutor/vocab",             tags=["Vocab"])
+    application.include_router(mcq.router,               prefix="/api/ai-tutor/mcq",               tags=["MCQ"])
 
     @application.get("/health", tags=["Health"])
     async def health():
