@@ -9,7 +9,7 @@ cd "$SCRIPT_DIR"
 # Create virtual env if missing
 if [ ! -d ".venv" ]; then
   echo "📦 Creating virtual environment..."
-  python3.12 -m venv .venv
+  python3 -m venv .venv
 fi
 
 # Activate
