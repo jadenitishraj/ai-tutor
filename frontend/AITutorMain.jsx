@@ -1,7 +1,7 @@
 
 "use client";
 import React, { useState, useEffect, useRef } from "react";
-import { MessageCircle, Download, X, Send, ArrowRight, ArrowLeft, BookOpen, Edit2, RotateCcw, LogOut, Library, List, Network, BookA } from "lucide-react";
+import { MessageCircle, MessageSquareQuote, FileQuestion, Download, X, Send, ArrowRight, ArrowLeft, BookOpen, Edit2, RotateCcw, LogOut, Library, List, Network, BookA } from "lucide-react";
 import BookCard from './BookCard';
 import { ShimmerBlock } from '../Common/Shimmer';
 import { motion, AnimatePresence } from "framer-motion";
@@ -49,6 +49,17 @@ export default function AITutorMain() {
   const [vocabModalOpen, setVocabModalOpen] = useState(false);
   const [vocabLoading, setVocabLoading] = useState(false);
   const [currentVocab, setCurrentVocab] = useState([]);
+
+  const [mcqModalOpen, setMcqModalOpen] = useState(false);
+  const [mcqLoading, setMcqLoading] = useState(false);
+  const [mcqGenerating, setMcqGenerating] = useState(false);
+  const [currentMcqs, setCurrentMcqs] = useState([]);
+  const [selectedMcqOption, setSelectedMcqOption] = useState("");
+  const [mcqAnswered, setMcqAnswered] = useState(false);
+
+  const [questionAnswerModalOpen, setQuestionAnswerModalOpen] = useState(false);
+  const [questionAnswerLoading, setQuestionAnswerLoading] = useState(false);
+  const [currentQuestionAnswers, setCurrentQuestionAnswers] = useState([]);
   
   const [lessonVibe, setLessonVibe] = useState("Thinker");
   const [customVibe, setCustomVibe] = useState("");
@@ -728,6 +739,112 @@ export default function AITutorMain() {
     }
   };
 
+  const handleMcq = async () => {
+    if (isCurriculumPage) return;
+    const currentChapter = chapterData[page - 1];
+    if (!currentChapter?.title) return;
+
+    setMcqModalOpen(true);
+    setMcqLoading(true);
+    setCurrentMcqs([]);
+    setSelectedMcqOption("");
+    setMcqAnswered(false);
+    await handleGenerateMcq(currentChapter.title, { isInitialLoad: true });
+  };
+
+  const handleGenerateMcq = async (chapterTitleOverride = null, options = {}) => {
+    if (isCurriculumPage) return;
+    const token = getAuthToken();
+    const currentChapter = chapterData[page - 1];
+    const chapterTitle = chapterTitleOverride || currentChapter?.title;
+    if (!chapterTitle) return;
+    const { isInitialLoad = false } = options;
+
+    setMcqGenerating(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/ai-tutor/mcq`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token && { "Authorization": `Bearer ${token}` })
+        },
+        body: JSON.stringify({
+          lesson_id: lessonId,
+          chapter_title: chapterTitle
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to generate MCQ");
+
+      if (data.mcq) {
+        setCurrentMcqs([data.mcq]);
+        setSelectedMcqOption("");
+        setMcqAnswered(false);
+      }
+    } catch (err) {
+      console.error(err);
+      if (isInitialLoad) {
+        setCurrentMcqs([
+          {
+            question: "Error",
+            options: [],
+            answer: "",
+            explanation: "Failed to generate MCQ for this chapter."
+          }
+        ]);
+        setSelectedMcqOption("");
+        setMcqAnswered(false);
+      }
+    } finally {
+      if (isInitialLoad) {
+        setMcqLoading(false);
+      }
+      setMcqGenerating(false);
+    }
+  };
+
+  const handleMcqOptionSelect = (option) => {
+    if (mcqAnswered) return;
+    setSelectedMcqOption(option);
+    setMcqAnswered(true);
+  };
+
+  const handleQuestionAnswer = async () => {
+    if (isCurriculumPage) return;
+    const token = getAuthToken();
+    const currentChapter = chapterData[page - 1];
+    if (!currentChapter?.title) return;
+
+    setQuestionAnswerModalOpen(true);
+    setQuestionAnswerLoading(true);
+    setCurrentQuestionAnswers([]);
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/ai-tutor/question-answer`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token && { "Authorization": `Bearer ${token}` })
+        },
+        body: JSON.stringify({
+          lesson_id: lessonId,
+          chapter_title: currentChapter.title
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to generate Q&A");
+
+      setCurrentQuestionAnswers(data.question_answers || []);
+    } catch (err) {
+      console.error(err);
+      setCurrentQuestionAnswers([
+        { question: "Error", answer: "Failed to load page questions and answers." }
+      ]);
+    } finally {
+      setQuestionAnswerLoading(false);
+    }
+  };
+
   const handleBack = () => {
     if (learningMode) {
       setChatOpen(false);
@@ -1084,6 +1201,12 @@ export default function AITutorMain() {
                       <div className="control-btn" onClick={handleVocab} title="Key Vocabulary" disabled={isCurriculumPage}>
                           <BookA size={24} />
                       </div>
+                      <div className="control-btn" onClick={handleMcq} title="Multiple Choice Questions" disabled={isCurriculumPage}>
+                          <FileQuestion size={24} />
+                      </div>
+                      <div className="control-btn" onClick={handleQuestionAnswer} title="Page Questions & Answers" disabled={isCurriculumPage}>
+                          <MessageSquareQuote size={24} />
+                      </div>
                       <div className="control-btn" onClick={() => setDownloadModalOpen(true)} title="Download as PDF">
                           <Download size={24} />
                       </div>
@@ -1308,6 +1431,130 @@ export default function AITutorMain() {
 
                <div className="ai-modal-footer mt-6">
                    <button onClick={() => setVocabModalOpen(false)} className="ai-btn ai-btn-secondary" style={{width: '100%'}}>Close</button>
+               </div>
+           </div>
+        </div>
+      )}
+
+      {mcqModalOpen && (
+        <div className="ai-modal-overlay">
+           <div className="ai-modal-content" style={{ maxWidth: '860px', width: '90%' }}>
+               <div className="d-flex justify-content-between align-items-center mb-4">
+                 <h3 className="text-xl font-bold mb-0">MCQ</h3>
+                 <button onClick={() => setMcqModalOpen(false)} style={{background: 'none', border: 'none', cursor: 'pointer'}}>
+                     <X size={20} className="text-gray-500" />
+                 </button>
+               </div>
+
+               {mcqLoading ? (
+                 <div className="space-y-4 py-8 d-flex flex-column align-items-center">
+                    <span className="jumping-dots font-semibold" style={{fontSize: '18px', color: '#6366f1'}}>Generating MCQ</span>
+                    <p className="text-sm text-gray-400">Preparing a question for this chapter...</p>
+                 </div>
+               ) : (
+                 <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                    {currentMcqs.length > 0 ? currentMcqs.map((item, idx) => (
+                        <div key={idx} className="bg-white border border-gray-200 p-4 rounded-lg shadow-sm">
+                            <h4 className="font-bold text-gray-900 mb-3">{item.question}</h4>
+                            <div className="space-y-2">
+                                {(item.options || []).map((option, optionIdx) => {
+                                  const isCorrect = option === item.answer;
+                                  const isSelected = option === selectedMcqOption;
+                                  let borderColor = '#e5e7eb';
+                                  let background = '#f9fafb';
+                                  let color = '#1f2937';
+
+                                  if (mcqAnswered && isCorrect) {
+                                    borderColor = '#86efac';
+                                    background = '#f0fdf4';
+                                    color = '#166534';
+                                  } else if (mcqAnswered && isSelected && !isCorrect) {
+                                    borderColor = '#fca5a5';
+                                    background = '#fef2f2';
+                                    color = '#991b1b';
+                                  }
+
+                                  return (
+                                    <button
+                                      type="button"
+                                      key={optionIdx}
+                                      className="mcq-option-row mcq-option-button border rounded-lg px-3 py-2 text-sm"
+                                      onClick={() => handleMcqOptionSelect(option)}
+                                      disabled={mcqAnswered || mcqGenerating}
+                                      style={{
+                                        borderColor,
+                                        background,
+                                        color
+                                      }}
+                                    >
+                                      <span className="mcq-option-label font-semibold">{String.fromCharCode(65 + optionIdx)}.</span>
+                                      <span className="mcq-option-text">{option}</span>
+                                    </button>
+                                  );
+                                })}
+                            </div>
+                            {mcqAnswered && item.answer && (
+                              <div className="mt-3 p-3 rounded-lg" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                                <p className="text-sm m-0" style={{color: '#166534'}}>
+                                  <strong>{selectedMcqOption === item.answer ? "Correct." : "Not quite."}</strong> The right answer is {item.answer}.
+                                </p>
+                                {item.explanation && (
+                                  <p className="text-sm text-gray-700 m-0 mt-2" style={{lineHeight: '1.6'}}>
+                                    <strong>Explanation:</strong> {item.explanation}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                            {mcqAnswered && item.options?.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => handleGenerateMcq()}
+                                className="ai-btn mt-4"
+                                disabled={mcqGenerating}
+                              >
+                                {mcqGenerating ? "Generating..." : "Next Question"}
+                              </button>
+                            )}
+                        </div>
+                    )) : (
+                        <p className="text-gray-500 text-center italic py-4">Generating MCQ for this chapter...</p>
+                    )}
+                 </div>
+               )}
+           </div>
+        </div>
+      )}
+
+      {questionAnswerModalOpen && (
+        <div className="ai-modal-overlay">
+           <div className="ai-modal-content" style={{ maxWidth: '860px', width: '90%' }}>
+               <div className="d-flex justify-content-between align-items-center mb-4">
+                 <h3 className="text-xl font-bold mb-0">Q&A</h3>
+                 <button onClick={() => setQuestionAnswerModalOpen(false)} style={{background: 'none', border: 'none', cursor: 'pointer'}}>
+                     <X size={20} className="text-gray-500" />
+                 </button>
+               </div>
+
+               {questionAnswerLoading ? (
+                 <div className="space-y-4 py-8 d-flex flex-column align-items-center">
+                    <span className="jumping-dots font-semibold" style={{fontSize: '18px', color: '#6366f1'}}>Generating Q&amp;A</span>
+                    <p className="text-sm text-gray-400">Preparing likely questions from this page...</p>
+                 </div>
+               ) : (
+                 <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                    {currentQuestionAnswers.length > 0 ? currentQuestionAnswers.map((item, idx) => (
+                        <div key={idx} className="bg-white border border-gray-200 p-4 rounded-lg shadow-sm">
+                            <h4 className="font-bold text-gray-900 mb-2">{item.question}</h4>
+                            <p className="text-sm text-gray-700 m-0" style={{lineHeight: '1.6'}}>{item.answer}</p>
+                        </div>
+                    )) : (
+                        <p className="text-gray-500 text-center italic py-4">No questions were generated for this chapter.</p>
+                    )}
+                 </div>
+               )}
+
+               <div className="ai-modal-footer mt-6">
+                   <button onClick={() => setQuestionAnswerModalOpen(false)} className="ai-btn ai-btn-secondary" style={{width: '100%'}}>Close</button>
                </div>
            </div>
         </div>

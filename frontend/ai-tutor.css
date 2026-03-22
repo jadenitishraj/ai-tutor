@@ -586,6 +586,9 @@
   display: flex;
   flex-direction: column;
   gap: 15px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  padding-right: 4px;
 }
 .control-btn {
   width: 48px;
@@ -606,6 +609,45 @@
   box-shadow: 0 6px 10px rgba(0, 0, 0, 0.1);
   color: #a37548;
   border-color: #d6d3d1;
+}
+
+.mcq-option-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.mcq-option-button {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.mcq-option-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.06);
+}
+
+.mcq-option-button:disabled {
+  cursor: default;
+}
+
+.mcq-option-label {
+  flex: 0 0 auto;
+  min-width: 22px;
+}
+
+.mcq-option-text {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 @media (max-width: 991px) {
@@ -671,6 +713,8 @@
     bottom: 76px;
     flex-direction: column;
     gap: 6px;
+    max-height: calc(100dvh - 150px);
+    overflow-y: auto;
   }
   .control-btn {
     width: 30px;

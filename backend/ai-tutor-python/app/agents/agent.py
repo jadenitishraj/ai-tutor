@@ -34,6 +34,7 @@ Tasks
   "generate_mindmap"     →  generate_mindmap node
   "generate_vocab"       →  generate_vocab node
   "generate_mcq"         →  generate_mcq node
+  "generate_question_answer" → generate_question_answer node
 
 State
 ─────
@@ -59,6 +60,7 @@ State
   mindmap_result    : str
   vocab_result      : list[dict]
   mcq_result        : dict       # Only 1 MCQ returned per run
+  question_answer_result : list[dict]
   error             : str | None
 """
 
@@ -77,6 +79,7 @@ from .summary_agent import summarize_chapter_content
 from .mindmap_agent import generate_mindmap_content
 from .vocab_agent import extract_vocab
 from .mcq_agent import generate_single_mcq
+from .question_answer_agent import generate_question_answer_pairs
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +118,7 @@ class TutorAgentState(TypedDict, total=False):
     mindmap_result: str
     vocab_result: list[dict]
     mcq_result: dict
+    question_answer_result: list[dict]
     error: Optional[str]
 
 
@@ -130,7 +134,7 @@ async def router_node(state: TutorAgentState) -> TutorAgentState:
     task = state.get("task", "unknown")
     logger.info("[TutorAgent] Routing task: %s", task)
 
-    valid_tasks = {"generate_curriculum", "refine_curriculum", "generate_chapter", "chat", "summarize_chapter", "generate_mindmap", "generate_vocab", "generate_mcq"}
+    valid_tasks = {"generate_curriculum", "refine_curriculum", "generate_chapter", "chat", "summarize_chapter", "generate_mindmap", "generate_vocab", "generate_mcq", "generate_question_answer"}
     if task not in valid_tasks:
         logger.error("[TutorAgent] Unknown task '%s'", task)
         return {**state, "error": f"Unknown task: '{task}'"}
@@ -274,6 +278,20 @@ async def generate_mcq_node(state: TutorAgentState) -> TutorAgentState:
         return {**state, "error": str(exc), "mcq_result": {}}
 
 
+async def generate_question_answer_node(state: TutorAgentState) -> TutorAgentState:
+    """Calls the Q&A Agent to generate likely page questions and answers."""
+    logger.info("[TutorAgent] Node: generate_question_answer | chapter=%s", state.get("chapter_title"))
+    try:
+        qa_list = await generate_question_answer_pairs(
+            chapter_title=state.get("chapter_title", ""),
+            content=state.get("chapter_content", ""),
+        )
+        return {**state, "question_answer_result": qa_list}
+    except Exception as exc:
+        logger.exception("[TutorAgent] generate_question_answer failed")
+        return {**state, "error": str(exc), "question_answer_result": []}
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 3.  Conditional edge — router decides which node runs next
 # ─────────────────────────────────────────────────────────────────────────────
@@ -292,6 +310,7 @@ def route_by_task(state: TutorAgentState) -> str:
         "generate_mindmap":    "generate_mindmap",
         "generate_vocab":      "generate_vocab",
         "generate_mcq":        "generate_mcq",
+        "generate_question_answer": "generate_question_answer",
     }
     return mapping.get(task, END)
 
@@ -313,6 +332,7 @@ def build_tutor_graph() -> StateGraph:
     graph.add_node("generate_mindmap",    generate_mindmap_node)
     graph.add_node("generate_vocab",      generate_vocab_node)
     graph.add_node("generate_mcq",        generate_mcq_node)
+    graph.add_node("generate_question_answer", generate_question_answer_node)
 
     # ── entry ─────────────────────────────────────────────────────────────────
     graph.set_entry_point("router")
@@ -330,6 +350,7 @@ def build_tutor_graph() -> StateGraph:
             "generate_mindmap":    "generate_mindmap",
             "generate_vocab":      "generate_vocab",
             "generate_mcq":        "generate_mcq",
+            "generate_question_answer": "generate_question_answer",
             END:                   END,
         },
     )
@@ -343,6 +364,7 @@ def build_tutor_graph() -> StateGraph:
     graph.add_edge("generate_mindmap",    END)
     graph.add_edge("generate_vocab",      END)
     graph.add_edge("generate_mcq",        END)
+    graph.add_edge("generate_question_answer", END)
 
     return graph
 
