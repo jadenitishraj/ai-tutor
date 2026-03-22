@@ -94,6 +94,9 @@
 .text-gray-800 {
   color: #1f2937;
 }
+.text-success {
+  color: #15803d;
+}
 .mb-4 {
   margin-bottom: 1rem;
 }
@@ -235,6 +238,80 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
+}
+
+.lesson-source-tabs {
+  display: inline-flex;
+  gap: 10px;
+  padding: 6px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+}
+
+.lesson-source-tab {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.lesson-source-tab.active {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+}
+
+.upload-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.upload-dropzone {
+  position: relative;
+  border: 1.5px dashed #cbd5e1;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.upload-dropzone-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  margin: 0;
+}
+
+.upload-dropzone-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.upload-dropzone-subtitle {
+  font-size: 0.92rem;
+  color: #64748b;
+}
+
+.upload-file-input {
+  margin-top: 16px;
+  width: 100%;
+}
+
+.upload-file-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 14px 16px;
 }
 
 /* Modals */
@@ -660,6 +737,11 @@
   .library-grid {
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 16px;
+  }
+  .lesson-source-tabs {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
   }
   .book-card-wrapper {
     transform: rotateY(-3deg);

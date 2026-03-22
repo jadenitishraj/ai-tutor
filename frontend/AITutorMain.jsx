@@ -29,6 +29,10 @@ function getAuthToken() {
 export default function AITutorMain() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [topic, setTopic] = useState("");
+  const [lessonSource, setLessonSource] = useState("ai");
+  const [uploadedFile, setUploadedFile] = useState(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState(null);
   const [generated, setGenerated] = useState(false);
   const [learningMode, setLearningMode] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -122,6 +126,49 @@ export default function AITutorMain() {
   const handleLogout = () => {
       localStorage.removeItem('ai_tutor_token');
       setIsAuthenticated(false);
+  };
+
+  const handleFileSelect = (event) => {
+    const file = event.target.files?.[0] || null;
+    setUploadedFile(file);
+    setUploadStatus(null);
+  };
+
+  const handleUploadFile = async () => {
+    if (!uploadedFile) return;
+
+    setUploadingFile(true);
+    setGenerateError("");
+    setUploadStatus(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", uploadedFile);
+
+      const res = await fetch(`${BACKEND_URL}/api/ai-tutor/upload-file`, {
+        method: "POST",
+        headers: {
+          ...(getAuthToken() && { Authorization: `Bearer ${getAuthToken()}` })
+        },
+        body: formData
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to upload file.");
+
+      setUploadStatus({
+        type: "success",
+        message: `Uploaded to ${data.path}`
+      });
+    } catch (err) {
+      console.error("Failed to upload file", err);
+      setUploadStatus({
+        type: "error",
+        message: err?.message || "Failed to upload file."
+      });
+    } finally {
+      setUploadingFile(false);
+    }
   };
 
   // Scroll to bottom of chat
@@ -933,70 +980,134 @@ export default function AITutorMain() {
 
             {!generated ? (
               <div className="space-y-6">
-                <div>
-                  <label className="text-sm font-semibold text-gray-800">Topic</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Life of Tigers, Quantum Physics, React Hooks..."
-                    className="ai-input"
-                    value={topic}
-                    onChange={(e) => setTopic(e.target.value)}
-                  />
-                </div>
-                
-                <div>
-                   <label className="text-sm font-semibold text-gray-800 mb-2 d-block">Lesson Vibe</label>
-                   <div className="d-flex gap-2">
-                       {['Thinker', 'Simple', 'Custom'].map((vibe) => (
-                           <button 
-                                key={vibe} 
-                                className={`ai-btn ai-btn-secondary ${lessonVibe === vibe ? 'bg-blue-50 border-blue-500 text-blue-700' : ''}`}
-                                style={lessonVibe === vibe ? {borderColor: '#3b82f6', background: '#eff6ff', color: '#1d4ed8'} : {}}
-                                onClick={() => setLessonVibe(vibe)}
-                           >
-                               {vibe}
-                           </button>
-                       ))}
-                   </div>
-                   {lessonVibe === 'Custom' && (
-                       <input 
-                            type="text" 
-                            placeholder="Describe your vibe..." 
-                            className="ai-input mt-2"
-                            value={customVibe}
-                            onChange={(e) => setCustomVibe(e.target.value)}
-                        />
-                   )}
+                <div className="lesson-source-tabs" role="tablist" aria-label="Lesson source">
+                  <button
+                    type="button"
+                    className={`lesson-source-tab ${lessonSource === 'ai' ? 'active' : ''}`}
+                    onClick={() => setLessonSource('ai')}
+                  >
+                    AI Generated
+                  </button>
+                  <button
+                    type="button"
+                    className={`lesson-source-tab ${lessonSource === 'upload' ? 'active' : ''}`}
+                    onClick={() => setLessonSource('upload')}
+                  >
+                    Upload File
+                  </button>
                 </div>
 
-                <div>
-                  <label className="text-sm font-semibold text-gray-800 mb-2 d-block">What size of book do you need?</label>
-                  <div className="d-flex gap-2">
-                    {[
-                      { key: "small", label: "Small" },
-                      { key: "medium", label: "Medium" },
-                      { key: "long", label: "Long" },
-                    ].map((size) => (
-                      <button
-                        key={size.key}
-                        className={`ai-btn ai-btn-secondary ${bookSize === size.key ? 'bg-blue-50 border-blue-500 text-blue-700' : ''}`}
-                        style={bookSize === size.key ? { borderColor: '#3b82f6', background: '#eff6ff', color: '#1d4ed8' } : {}}
-                        onClick={() => setBookSize(size.key)}
-                      >
-                        {size.label}
-                      </button>
-                    ))}
+                {lessonSource === 'ai' ? (
+                  <>
+                    <div>
+                      <label className="text-sm font-semibold text-gray-800">Topic</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Life of Tigers, Quantum Physics, React Hooks..."
+                        className="ai-input"
+                        value={topic}
+                        onChange={(e) => setTopic(e.target.value)}
+                      />
+                    </div>
+                    
+                    <div>
+                       <label className="text-sm font-semibold text-gray-800 mb-2 d-block">Lesson Vibe</label>
+                       <div className="d-flex gap-2">
+                           {['Thinker', 'Simple', 'Custom'].map((vibe) => (
+                               <button 
+                                    key={vibe} 
+                                    className={`ai-btn ai-btn-secondary ${lessonVibe === vibe ? 'bg-blue-50 border-blue-500 text-blue-700' : ''}`}
+                                    style={lessonVibe === vibe ? {borderColor: '#3b82f6', background: '#eff6ff', color: '#1d4ed8'} : {}}
+                                    onClick={() => setLessonVibe(vibe)}
+                               >
+                                   {vibe}
+                               </button>
+                           ))}
+                       </div>
+                       {lessonVibe === 'Custom' && (
+                           <input 
+                                type="text" 
+                                placeholder="Describe your vibe..." 
+                                className="ai-input mt-2"
+                                value={customVibe}
+                                onChange={(e) => setCustomVibe(e.target.value)}
+                            />
+                       )}
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-semibold text-gray-800 mb-2 d-block">What size of book do you need?</label>
+                      <div className="d-flex gap-2">
+                        {[
+                          { key: "small", label: "Small" },
+                          { key: "medium", label: "Medium" },
+                          { key: "long", label: "Long" },
+                        ].map((size) => (
+                          <button
+                            key={size.key}
+                            className={`ai-btn ai-btn-secondary ${bookSize === size.key ? 'bg-blue-50 border-blue-500 text-blue-700' : ''}`}
+                            style={bookSize === size.key ? { borderColor: '#3b82f6', background: '#eff6ff', color: '#1d4ed8' } : {}}
+                            onClick={() => setBookSize(size.key)}
+                          >
+                            {size.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button 
+                        onClick={handleGenerate} 
+                        className="ai-btn"
+                        disabled={!topic || loading}
+                        style={{opacity: !topic || loading ? 0.6 : 1}}
+                    >
+                      {loading ? 'Generating...' : <>Generate Curriculum <ArrowRight className="ml-2 w-4 h-4" /></>}
+                    </button>
+                  </>
+                ) : (
+                  <div className="upload-panel">
+                    <div className="upload-dropzone">
+                      <label htmlFor="lesson-file-upload" className="upload-dropzone-label">
+                        <span className="upload-dropzone-title">Upload Your File</span>
+                        <span className="upload-dropzone-subtitle">Choose a document from your computer to use as the lesson source.</span>
+                      </label>
+                      <input
+                        id="lesson-file-upload"
+                        type="file"
+                        className="upload-file-input"
+                        onChange={handleFileSelect}
+                      />
+                    </div>
+
+                    {uploadedFile ? (
+                      <div className="upload-file-card">
+                        <div className="font-semibold text-gray-800">{uploadedFile.name}</div>
+                        <div className="text-sm text-gray-500">
+                          {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 mb-0">No file selected yet.</p>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleUploadFile}
+                      className="ai-btn"
+                      disabled={!uploadedFile || uploadingFile}
+                      style={{opacity: !uploadedFile || uploadingFile ? 0.6 : 1}}
+                    >
+                      {uploadingFile ? "Uploading..." : <>Upload File <ArrowRight className="ml-2 w-4 h-4" /></>}
+                    </button>
+
+                    {uploadStatus && (
+                      <p className={`text-sm mb-0 ${uploadStatus.type === 'error' ? 'text-danger' : 'text-success'}`}>
+                        {uploadStatus.message}
+                      </p>
+                    )}
                   </div>
-                </div>
+                )}
 
-                <button 
-                    onClick={handleGenerate} 
-                    className="ai-btn"
-                    disabled={!topic || loading}
-                    style={{opacity: !topic || loading ? 0.6 : 1}}
-                >
-                  {loading ? 'Generating...' : <>Generate Curriculum <ArrowRight className="ml-2 w-4 h-4" /></>}
-                </button>
                 {generateError && (
                   <p className="text-danger text-sm mb-0">{generateError}</p>
                 )}
