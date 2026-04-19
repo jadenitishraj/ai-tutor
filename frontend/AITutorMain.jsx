@@ -3,12 +3,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import { MessageCircle, MessageSquareQuote, FileQuestion, Download, X, Send, ArrowRight, ArrowLeft, BookOpen, Edit2, RotateCcw, LogOut, Library, List, Network, BookA } from "lucide-react";
 import BookCard from './BookCard';
+import GenericBookReader from './GenericBookReader';
 import UploadedPdfReader from './UploadedPdfReader';
 import { ShimmerBlock } from '../Common/Shimmer';
 import { motion, AnimatePresence } from "framer-motion";
 import jsPDF from "jspdf";
 
-import Header from "../Layout/Header/Header";
 import './ai-tutor.css';
 
 // ── Backend configuration ──────────────────────────────────────────────────────
@@ -27,7 +27,7 @@ function getAuthToken() {
   return null;
 }
 
-export default function AITutorMain() {
+export default function AITutorMain({ onReadingModeChange }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [topic, setTopic] = useState("");
   const [lessonSource, setLessonSource] = useState("ai");
@@ -85,6 +85,12 @@ export default function AITutorMain() {
   const [lessonsLoading, setLessonsLoading] = useState(true);
 
   const chatEndRef = useRef(null);
+
+  useEffect(() => {
+    if (typeof onReadingModeChange === "function") {
+      onReadingModeChange(learningMode);
+    }
+  }, [learningMode, onReadingModeChange]);
 
   const formatLessonDate = (dateValue) => {
     return new Date(dateValue).toLocaleDateString(undefined, {
@@ -936,6 +942,133 @@ export default function AITutorMain() {
   const isNextChapterLoading = nextChapterIndex >= 0 && !!chapterLoadingMap[nextChapterIndex];
   const disableNext = isLastPage;
 
+  const lessonDownloadConfig = {
+    documentTitle: topic || "AI Lesson",
+    tocTitle: "Curriculum",
+    tocItems: curriculum,
+    pages: curriculum
+      .map((title, index) => ({
+        title,
+        content: chapterData[index]?.content || "",
+        chatHistory: chapterData[index]?.chatHistory || [],
+      }))
+      .filter((item) => item.content),
+    currentPageNumber: page + 1,
+  };
+
+  const lessonToolAdapter = {
+    sendChat: async ({ page: currentPage, message }) => {
+      const res = await fetch(`${BACKEND_URL}/api/ai-tutor/chat`, {
+        method: 'POST',
+        body: JSON.stringify({
+          lesson_id: lessonId,
+          chapter_title: currentPage.title,
+          message,
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getAuthToken()}`,
+        },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Chat failed");
+
+      setChapterData((prev) => ({
+        ...prev,
+        [activeChapterIndex]: {
+          ...prev[activeChapterIndex],
+          chatHistory: [
+            ...(prev[activeChapterIndex]?.chatHistory || []),
+            { role: 'user', content: message },
+            { role: 'assistant', content: data.content },
+          ],
+        },
+      }));
+
+      return data.content;
+    },
+    summarize: async ({ page: currentPage }) => {
+      const res = await fetch(`${BACKEND_URL}/api/ai-tutor/summary`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${getAuthToken()}`,
+        },
+        body: JSON.stringify({
+          lesson_id: lessonId,
+          chapter_title: currentPage.title,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to generate summary");
+      return data.bullets || [];
+    },
+    mindmap: async ({ page: currentPage }) => {
+      const res = await fetch(`${BACKEND_URL}/api/ai-tutor/mindmap`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${getAuthToken()}`,
+        },
+        body: JSON.stringify({
+          lesson_id: lessonId,
+          chapter_title: currentPage.title,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to generate mindmap");
+      return data.tree || "";
+    },
+    vocab: async ({ page: currentPage }) => {
+      const res = await fetch(`${BACKEND_URL}/api/ai-tutor/vocab`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${getAuthToken()}`,
+        },
+        body: JSON.stringify({
+          lesson_id: lessonId,
+          chapter_title: currentPage.title,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to extract vocab");
+      return data.vocab || [];
+    },
+    mcq: async ({ page: currentPage }) => {
+      const res = await fetch(`${BACKEND_URL}/api/ai-tutor/mcq`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${getAuthToken()}`,
+        },
+        body: JSON.stringify({
+          lesson_id: lessonId,
+          chapter_title: currentPage.title,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to generate MCQ");
+      return data.mcq;
+    },
+    questionAnswer: async ({ page: currentPage }) => {
+      const res = await fetch(`${BACKEND_URL}/api/ai-tutor/question-answer`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${getAuthToken()}`,
+        },
+        body: JSON.stringify({
+          lesson_id: lessonId,
+          chapter_title: currentPage.title,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to generate Q&A");
+      return data.question_answers || [];
+    },
+  };
+
 
   if (!isAuthenticated) {
       return (
@@ -968,7 +1101,6 @@ export default function AITutorMain() {
 
   return (
     <>
-    {!learningMode && <Header />}
     <div className={`ai-tutor-container ${!learningMode ? 'ai-tutor-main-padding' : 'ai-tutor-learning-padding'}`}>
       <AnimatePresence mode="wait">
         {!learningMode ? (
@@ -1214,193 +1346,29 @@ export default function AITutorMain() {
           </motion.div>
         ) : (
           /* Learning Mode - Book View */
-          <>
-            <button onClick={handleBack} className="ai-back-btn ai-back-btn-learning">
-              <ArrowLeft size={18} className="mr-1" />
-              <span className="back-text">Back</span>
-            </button>
-          <motion.div
-            key="learning-book"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className={`book-container ${chatOpen ? 'with-chat' : ''}`}
-            style={{ padding: '3px' }} // Tighter padding request
-          >
-             {/* Left Margin Strip with Binding visual */}
-             <div className="book-margin-left">
-                  {[...Array(24)].map((_, i) => (
-                      <div key={i} className="binding-hole"></div>
-                  ))}
-              </div>
-              
-              <div className="book-page-stack"></div>
-
-              {/* Main Page Content */}
-              <div className="book-page" style={{ paddingTop: '20px', paddingBottom: '20px' }}> {/* Reduced margins */}
-                   
-                   {!isCurriculumPage && !activeChapter ? (
-                       <div className="d-flex justify-content-center align-items-center h-100">
-                            <div className="writing-chapter-wrap">
-                              <div className="writing-chapter-book" aria-hidden="true">
-                                <span className="writing-pen"></span>
-                                <span className="writing-line line-1"></span>
-                                <span className="writing-line line-2"></span>
-                                <span className="writing-line line-3"></span>
-                              </div>
-                              <div className="writing-chapter-text">
-                                Writing Chapter
-                                <span className="writing-dots" aria-hidden="true"></span>
-                              </div>
-                            </div>
-                       </div>
-                   ) : isCurriculumPage ? (
-                       <AnimatePresence mode="wait">
-                           <motion.div
-                               key="curriculum-page"
-                               initial={{ opacity: 0, x: 20 }}
-                               animate={{ opacity: 1, x: 0 }}
-                               exit={{ opacity: 0, x: -20 }}
-                               transition={{ duration: 0.3 }}
-                           >
-                               <h2 className="text-xl font-bold text-gray-900 mb-4 font-serif">Curriculum</h2>
-                               <ul className="space-y-2 pl-4">
-                                   {curriculum.map((item, idx) => (
-                                       <li key={idx} className="text-gray-800 list-disc">{typeof item === "string" ? item : `Chapter ${idx + 1}`}</li>
-                                   ))}
-                               </ul>
-                           </motion.div>
-                       </AnimatePresence>
-                   ) : (
-                       <AnimatePresence mode="wait">
-                           <motion.div
-                               key={page}
-                               initial={{ opacity: 0, x: 20 }}
-                               animate={{ opacity: 1, x: 0 }}
-                               exit={{ opacity: 0, x: -20 }}
-                               transition={{ duration: 0.3 }}
-                           >
-                               {/* Smaller Header */}
-                               <h2 className="text-xl font-bold text-gray-900 mb-4 font-serif">{activeChapter?.title}</h2>
-                               <div dangerouslySetInnerHTML={{ __html: activeChapter?.content || "" }} className="space-y-6 text-gray-800 leading-relaxed text-lg content-html" />
-                           </motion.div>
-                       </AnimatePresence>
-                   )}
-                   
-                   <div style={{height: '60px'}}></div> {/* Smaller Spacer */}
-              </div>
-
-              {/* Bottom Navigation (Floating) */}
-              <div className="book-bottom-nav position-absolute bottom-0 p-3 d-flex justify-content-between align-items-center" style={{ background: 'linear-gradient(to top, #fdfbf7 90%, transparent)', zIndex: 20 }}>
-                   <button 
-                        onClick={handlePrevPage} 
-                        disabled={page === 0}
-                        className="ai-btn ai-btn-ghost text-sm d-flex align-items-center"
-                        style={{width: 'auto', opacity: page === 0 ? 0.5 : 1, padding: '8px 12px', color: 'black'}}
-                   >
-                       <ArrowLeft size={24} className="mr-1" />
-                   </button>
-
-                   <span className="text-xs text-gray-400 font-mono">{page + 1} / {totalBookPages}</span>
-
-                   <button 
-                        onClick={handleNextPage} 
-                        disabled={disableNext}
-                        className="ai-btn ai-btn-ghost text-sm d-flex align-items-center"
-                        style={{width: 'auto', opacity: disableNext ? 0.3 : 1, padding: '8px 12px', color: 'black'}}
-                   >
-                       {isNextChapterLoading && (
-                         <>
-                           <span className="next-page-loader" aria-hidden="true"></span>
-                           <span className="next-page-loading-text">Loading next page...</span>
-                         </>
-                       )}
-                       <ArrowRight size={24} className="ml-1" />
-                   </button>
-              </div>
-
-
-              {/* Floating Controls (Right Side - Outside Book) */}
-              {learningMode && (
-                  <div className="floating-controls">
-                      <div className="control-btn" onClick={() => setChatOpen(prev => !prev)} title="Discuss about this topic">
-                          <MessageCircle size={24} />
-                      </div>
-                      <div className="control-btn" onClick={handleSummarize} title="Chapter Summary" disabled={isCurriculumPage}>
-                          <List size={24} />
-                      </div>
-                      <div className="control-btn" onClick={handleMindmap} title="Concept Tree" disabled={isCurriculumPage}>
-                          <Network size={24} />
-                      </div>
-                      <div className="control-btn" onClick={handleVocab} title="Key Vocabulary" disabled={isCurriculumPage}>
-                          <BookA size={24} />
-                      </div>
-                      <div className="control-btn" onClick={handleMcq} title="Multiple Choice Questions" disabled={isCurriculumPage}>
-                          <FileQuestion size={24} />
-                      </div>
-                      <div className="control-btn" onClick={handleQuestionAnswer} title="Page Questions & Answers" disabled={isCurriculumPage}>
-                          <MessageSquareQuote size={24} />
-                      </div>
-                      <div className="control-btn" onClick={() => setDownloadModalOpen(true)} title="Download as PDF">
-                          <Download size={24} />
-                      </div>
-                      <div className="control-btn" onClick={() => setLearningMode(false)} title="Exit Lesson">
-                          <LogOut size={24} />
-                      </div>
-                  </div>
-              )}
-
-              {/* Chat Sidebar (Fixed - Outside Book) */}
-              {learningMode && (
-                <div className={`chat-sidebar ${chatOpen ? 'open' : ''}`}>
-                    <div className="chat-header">
-                        <span>AI Tutor</span>
-                        <button onClick={() => setChatOpen(false)} style={{background: 'none', border: 'none', cursor: 'pointer'}}>
-                            <X size={20} className="text-gray-500" />
-                        </button>
-                    </div>
-                    <div className="chat-body space-y-4">
-                         
-                        <div className="chat-bubble-ai">
-                            Hello! I can answer questions about <strong>{isCurriculumPage ? 'the current chapter once you open it' : (activeChapter?.title || 'this topic')}</strong>.
-                        </div>
-                        
-                        {activeChapter?.chatHistory?.map((msg, idx) => (
-                             <div key={idx} className={`d-flex ${msg.role === 'user' ? 'justify-content-end' : ''}`}>
-                                <div className={msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'} style={{maxWidth: '85%'}}>
-                                    {msg.content}
-                                </div>
-                            </div>
-                        ))}
-                        
-                        {chatLoading && (
-                             <div className="chat-bubble-ai">
-                                 <span className="jumping-dots">Thinking...</span>
-                             </div>
-                        )}
-                        <div ref={chatEndRef} />
-                    </div>
-                    <div className="chat-footer">
-                        <div className="d-flex gap-2">
-                            <input 
-                                type="text" 
-                                placeholder="Ask a question..." 
-                                className="ai-input mb-0" 
-                                style={{marginBottom: 0, background: 'white'}} 
-                                value={chatMessage}
-                                onChange={(e) => setChatMessage(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleChatSubmit()}
-                                disabled={isCurriculumPage}
-                            />
-                            <button onClick={handleChatSubmit} className="ai-btn" style={{width: 'auto', padding: '0.5rem 1rem'}} disabled={chatLoading || isCurriculumPage}>
-                                <Send size={18} />
-                            </button>
-                        </div>
-                    </div>
-                </div>
-              )}
-
-          </motion.div>
-          </>
+          <GenericBookReader
+            documentTitle={topic || "AI Lesson"}
+            tocTitle="Curriculum"
+            tocItems={curriculum}
+            pageIndex={page}
+            totalPages={totalBookPages}
+            isTocPage={isCurriculumPage}
+            currentPageId={activeChapter?.title}
+            currentPageTitle={activeChapter?.title}
+            currentPageContent={activeChapter?.content}
+            initialChatHistory={activeChapter?.chatHistory || []}
+            currentPageLoading={!isCurriculumPage && !activeChapter}
+            nextPageLoading={isNextChapterLoading}
+            disablePrev={page === 0}
+            disableNext={disableNext}
+            onPrevPage={handlePrevPage}
+            onNextPage={handleNextPage}
+            onBack={handleBack}
+            onExit={() => setLearningMode(false)}
+            toolAdapter={lessonToolAdapter}
+            downloadConfig={lessonDownloadConfig}
+            assistantLabel="AI Tutor"
+          />
         )}
       </AnimatePresence>
 
